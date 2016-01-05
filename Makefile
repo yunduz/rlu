@@ -3,11 +3,14 @@ URCUDIR ?= /usr/local
 CC := gcc
 LD := gcc
 
+
 CFLAGS += -I$(URCUDIR)/include
 CFLAGS += -D_REENTRANT
 CFLAGS += -Wall -Winline
 #CFLAGS += --param inline-unit-growth=1000
 CFLAGS += -mrtm
+
+CFLAGS += -DHIDE_ALL_STATS
 
 ifdef DEBUG
 	CFLAGS += -O0 -g3

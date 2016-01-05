@@ -624,7 +624,9 @@ void rlu_init(int type, int max_write_sets) {
 	} else if (type == RLU_TYPE_FINE_GRAINED) {
 		g_rlu_type = RLU_TYPE_FINE_GRAINED;
 		g_rlu_max_write_sets = max_write_sets;
+		#ifndef HIDE_ALL_STATS
 		printf("RLU - FINE_GRAINED initialized [max_write_sets = %d]\n", g_rlu_max_write_sets);
+		#endif
 		
 	} else {
 		RLU_TRACE_GLOBAL("unknown type [%d]", type);

@@ -20,6 +20,7 @@
 // DEFINES
 /////////////////////////////////////////////////////////
 
+
 #define RO                              1
 #define RW                              0
 
@@ -156,10 +157,12 @@ static void thread_finish(thread_data_t *d) {
 	RCU_THREAD_FINISH();
 }
 
+#ifndef HIDE_ALL_STATS
 static void print_stats() {
 	RLU_PRINT_STATS();
 	RCU_PRINT_STATS();
 }
+#endif
 
 static void hash_list_init(hash_list_t **pp, int n_buckets) {
 #ifdef IS_RLU
@@ -254,8 +257,10 @@ static void *test(void *data)
 	
 	if (d->uniq_id == 0) {
 		/* Populate set */
+		#ifndef HIDE_ALL_STATS
 		printf("[%ld] Initializing\n", d->uniq_id);
 		printf("[%ld] Adding %d entries to set\n", d->uniq_id, d->initial);
+		#endif
 		d->p_rlu_td->is_no_quiescence = 1;
 		int i = 0;
 		while (i < d->initial) {
@@ -265,9 +270,11 @@ static void *test(void *data)
 				i++;
 			}
 		}
+		#ifndef HIDE_ALL_STATS
 		printf("[%ld] Adding done\n", d->uniq_id);
 		int size = hash_list_size(d->p_hash_list);
 		printf("Hash-list size     : %d\n", size);	
+		#endif
 		
 		d->p_rlu_td->is_no_quiescence = 0;
 	}
@@ -449,6 +456,7 @@ int main(int argc, char **argv)
 	assert(range > 0 && range >= initial);
 	assert(rlu_max_ws >= 1 && rlu_max_ws <= 100 && update >= 0 && update <= 1000);
 
+	#ifndef HIDE_ALL_STATS
 	printf("Set type     : hash-list\n");
 	printf("Buckets      : %d\n", n_buckets);
 	printf("Duration     : %d\n", duration);
@@ -465,6 +473,7 @@ int main(int argc, char **argv)
 		(int)sizeof(long),
 		(int)sizeof(void *),
 		(int)sizeof(size_t));
+	#endif
 
 	timeout.tv_sec = duration / 1000;
 	timeout.tv_nsec = (duration % 1000) * 1000000;
@@ -507,7 +516,9 @@ int main(int argc, char **argv)
 	pthread_attr_init(&attr);
 	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
 	for (i = 0; i < nb_threads; i++) {
+		#ifndef HIDE_ALL_STATS
 		printf("Creating thread %d\n", i);
+		#endif
 
 		data[i].uniq_id = i;
 		data[i].range = range;
@@ -534,7 +545,9 @@ int main(int argc, char **argv)
 	/* Start threads */
 	barrier_cross(&barrier);
 
+	#ifndef HIDE_ALL_STATS
 	printf("STARTING THREADS...\n");
+	#endif
 	gettimeofday(&start, NULL);
 	if (duration > 0) {
 		nanosleep(&timeout, NULL);
@@ -544,7 +557,9 @@ int main(int argc, char **argv)
 	}
 	stop = 1;
 	gettimeofday(&end, NULL);
+	#ifndef HIDE_ALL_STATS
 	printf("STOPPING THREADS...\n");
+	#endif
 
 	/* Wait for thread completion */
 	for (i = 0; i < nb_threads; i++) {
@@ -558,15 +573,18 @@ int main(int argc, char **argv)
 	reads = 0;
 	updates = 0;
 	for (i = 0; i < nb_threads; i++) {
+		#ifndef HIDE_ALL_STATS
 		printf("Thread %d\n", i);
 		printf("  #add        : %lu\n", data[i].nb_add);
 		printf("  #remove     : %lu\n", data[i].nb_remove);
 		printf("  #contains   : %lu\n", data[i].nb_contains);
 		printf("  #found      : %lu\n", data[i].nb_found);
+		#endif
 		reads += data[i].nb_contains;
 		updates += (data[i].nb_add + data[i].nb_remove);
 		size += data[i].diff;
 	}
+	#ifndef HIDE_ALL_STATS
 	printf("Set size      : %d (expected: %d)\n", hash_list_size(p_hash_list), size);
 	printf("Duration      : %d (ms)\n", duration);
 	printf("#ops          : %lu (%f / s)\n", reads + updates, (reads + updates) * 1000.0 / duration);
@@ -574,6 +592,9 @@ int main(int argc, char **argv)
 	printf("#update ops   : %lu (%f / s)\n", updates, updates * 1000.0 / duration);
 
 	print_stats();
+	#endif
+
+	printf("%d\t%d\t%d\t%d\t%f\n", nb_threads, update/10, duration, rlu_max_ws, (reads + updates) / (duration * 1000.0));
 
 	/* Cleanup */
 	free(threads);
