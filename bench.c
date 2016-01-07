@@ -15,6 +15,7 @@
 #include <time.h>
 
 #include "hash-list.h"
+#include "hash-list-with-lock.h"
 
 /////////////////////////////////////////////////////////
 // DEFINES
@@ -46,7 +47,11 @@
 /////////////////////////////////////////////////////////
 typedef struct thread_data {
 	long uniq_id;
+#ifndef IS_W_LOCKS
 	hash_list_t *p_hash_list;
+#else
+	hash_list_l *p_hash_list;
+#endif
 	struct barrier *barrier;
 	unsigned long nb_add;
 	unsigned long nb_remove;
@@ -57,7 +62,7 @@ typedef struct thread_data {
 	int diff;
 	int range;
 	int update;
-	int alternate;	
+	int alternate;
 	rlu_thread_data_t *p_rlu_td;
 	rlu_thread_data_t rlu_td;
 	hp_thread_t *p_hp_td;
@@ -83,17 +88,17 @@ static unsigned short main_seed[3];
 /////////////////////////////////////////////////////////
 // HELPER FUNCTIONS
 /////////////////////////////////////////////////////////
-static inline int MarsagliaXORV (int x) { 
-  if (x == 0) x = 1 ; 
+static inline int MarsagliaXORV (int x) {
+  if (x == 0) x = 1 ;
   x ^= x << 6;
   x ^= ((unsigned)x) >> 21;
-  x ^= x << 7 ; 
+  x ^= x << 7 ;
   return x ;        // use either x or x & 0x7FFFFFFF
 }
 
 static inline int MarsagliaXOR (int * seed) {
   int x = MarsagliaXORV(*seed);
-  *seed = x ; 
+  *seed = x ;
   return x & 0x7FFFFFFF;
 }
 
@@ -107,10 +112,10 @@ static inline void rand_init(unsigned short *seed)
 static inline int rand_range(int n, unsigned short *seed)
 {
   /* Return a random number in range [0;n) */
-  
+
   /*int v = (int)(erand48(seed) * n);
   assert (v >= 0 && v < n);*/
-  
+
   int v = MarsagliaXOR((int *)seed) % n;
   return v;
 }
@@ -149,7 +154,7 @@ static void global_init(int n_threads, int rlu_max_ws) {
 
 static void thread_init(thread_data_t *d) {
 	RLU_THREAD_INIT(d->p_rlu_td);
-	RCU_THREAD_INIT(d->uniq_id);	
+	RCU_THREAD_INIT(d->uniq_id);
 }
 
 static void thread_finish(thread_data_t *d) {
@@ -164,6 +169,7 @@ static void print_stats() {
 }
 #endif
 
+#ifndef IS_W_LOCKS
 static void hash_list_init(hash_list_t **pp, int n_buckets) {
 #ifdef IS_RLU
 	*pp = rlu_new_hash_list(n_buckets);
@@ -184,7 +190,15 @@ static void hash_list_init(hash_list_t **pp, int n_buckets) {
 #endif
 #endif
 }
+#else
+static void hash_list_init(hash_list_l **pp, int n_buckets)
+{
+	//printf("----------------hash list init, buckets: %d\n", n_buckets);
+	*pp = w_lock_new_hash_list(n_buckets);
+}
+#endif
 
+#ifndef IS_W_LOCKS
 static int hash_list_contains(thread_data_t *d, int key) {
 #ifdef IS_RLU
 	return rlu_hash_list_contains(d->p_rlu_td, d->p_hash_list, key);
@@ -205,7 +219,15 @@ static int hash_list_contains(thread_data_t *d, int key) {
 #endif
 #endif
 }
+#else
+static int hash_list_contains(thread_data_t *d, int key)
+{
+	//printf("----------------contains: %d\n", key);
+	return w_lock_hash_list_contains(d->p_hash_list, key);
+}
+#endif
 
+#ifndef IS_W_LOCKS
 static int hash_list_add(thread_data_t *d, int key) {
 #ifdef IS_RLU
 	return rlu_hash_list_add(d->p_rlu_td, d->p_hash_list, key);
@@ -226,7 +248,15 @@ static int hash_list_add(thread_data_t *d, int key) {
 #endif
 #endif
 }
+#else
+static int hash_list_add(thread_data_t *d, int key)
+{
+	//printf("----------------add: %d\n", key);
+	return w_lock_hash_list_add(d->p_hash_list, key);
+}
+#endif
 
+#ifndef IS_W_LOCKS
 static int hash_list_remove(thread_data_t *d, int key) {
 #ifdef IS_RLU
 	return rlu_hash_list_remove(d->p_rlu_td, d->p_hash_list, key);
@@ -247,14 +277,21 @@ static int hash_list_remove(thread_data_t *d, int key) {
 #endif
 #endif
 }
+#else
+static int hash_list_remove(thread_data_t *d, int key)
+{
+	//printf("----------------remove: %d\n", key);
+	return w_lock_hash_list_remove(d->p_hash_list, key);
+}
+#endif
 
 static void *test(void *data)
 {
 	int op, key, last = -1;
 	thread_data_t *d = (thread_data_t *)data;
-	
+
 	thread_init(d);
-	
+
 	if (d->uniq_id == 0) {
 		/* Populate set */
 		#ifndef HIDE_ALL_STATS
@@ -265,20 +302,24 @@ static void *test(void *data)
 		int i = 0;
 		while (i < d->initial) {
 			key = rand_range(d->range, d->seed) + 1;
-			
+
 			if (hash_list_add(d, key)) {
 				i++;
 			}
 		}
 		#ifndef HIDE_ALL_STATS
 		printf("[%ld] Adding done\n", d->uniq_id);
+#ifndef IS_W_LOCKS
 		int size = hash_list_size(d->p_hash_list);
-		printf("Hash-list size     : %d\n", size);	
+#else
+		int size = w_lock_hash_list_size(d->p_hash_list);
+#endif
+		printf("Hash-list size     : %d\n", size);
 		#endif
-		
+
 		d->p_rlu_td->is_no_quiescence = 0;
 	}
-	
+
 	/* Wait on barrier */
 	barrier_cross(d->barrier);
 
@@ -329,9 +370,9 @@ static void *test(void *data)
 			d->nb_contains++;
 		}
 	}
-	
+
 	thread_finish(d);
-	
+
 	return NULL;
 }
 
@@ -352,7 +393,11 @@ int main(int argc, char **argv)
 			{NULL, 0, NULL, 0}
 	};
 
+#ifndef IS_W_LOCKS
 	hash_list_t *p_hash_list;
+#else
+	hash_list_l *p_hash_list;
+#endif
 	int i, c, size;
 	unsigned long reads, updates;
 	thread_data_t *data;
@@ -411,7 +456,7 @@ int main(int argc, char **argv)
 				"  -s, --seed <int>\n"
 				"        RNG seed (0=time-based, default=" XSTR(DEFAULT_SEED) ")\n"
 				"  -u, --update-rate <int>\n"
-				"        Percentage of update transactions (1000 = 100 percent) (default=" XSTR(DEFAULT_UPDATE) ")\n"				
+				"        Percentage of update transactions (1000 = 100 percent) (default=" XSTR(DEFAULT_UPDATE) ")\n"
 				);
 			exit(0);
 			case 'a':
@@ -464,7 +509,7 @@ int main(int argc, char **argv)
 	printf("Nb threads   : %d\n", nb_threads);
 	printf("Value range  : %d\n", range);
 	printf("Seed         : %d\n", seed);
-	printf("rlu-max-ws   : %d\n", rlu_max_ws);	
+	printf("rlu-max-ws   : %d\n", rlu_max_ws);
 	printf("Update rate  : %d\n", update);
 	printf("Alternate    : %d\n", alternate);
 	printf("Node size    : %lu\n", sizeof(node_t));
@@ -494,13 +539,13 @@ int main(int argc, char **argv)
 		srand((int)time(NULL));
 	else
 		srand(seed);
-	
+
 	global_init(nb_threads, rlu_max_ws);
-	
+
 	hash_list_init(&p_hash_list, n_buckets);
 
 	size = initial;
-	
+
 	stop = 0;
 
 	/* Thread-local seed for main thread */
@@ -585,7 +630,11 @@ int main(int argc, char **argv)
 		size += data[i].diff;
 	}
 	#ifndef HIDE_ALL_STATS
+#ifndef IS_W_LOCKS
 	printf("Set size      : %d (expected: %d)\n", hash_list_size(p_hash_list), size);
+#else
+	printf("Set size      : %d (expected: %d)\n", w_lock_hash_list_size(p_hash_list), size);
+#endif
 	printf("Duration      : %d (ms)\n", duration);
 	printf("#ops          : %lu (%f / s)\n", reads + updates, (reads + updates) * 1000.0 / duration);
 	printf("#read ops     : %lu (%f / s)\n", reads, reads * 1000.0 / duration);

@@ -10,8 +10,9 @@ CFLAGS += -Wall -Winline
 #CFLAGS += --param inline-unit-growth=1000
 CFLAGS += -mrtm
 
-CFLAGS += -DHIDE_ALL_STATS
+#CFLAGS += -DHIDE_ALL_STATS
 
+#CFLAGS += -O0 -g3
 ifdef DEBUG
 	CFLAGS += -O0 -g3
 else
@@ -23,11 +24,12 @@ IS_HAZARD_PTRS_HARRIS = -DIS_HAZARD_PTRS_HARRIS
 IS_HARRIS = -DIS_HARRIS
 IS_RCU = -DIS_RCU
 IS_RLU = -DIS_RLU
+IS_W_LOCKS = -DIS_W_LOCKS
 
 LDFLAGS += -L$(URCUDIR)/lib
 LDFLAGS += -lpthread
 
-BINS = bench-harris bench-hp-harris bench-rcu bench-rlu
+BINS = bench-harris bench-hp-harris bench-rcu bench-rlu bench-lock test-lock
 
 .PHONY:	all clean
 
@@ -45,6 +47,9 @@ hazard_ptrs.o: hazard_ptrs.c
 hash-list.o: hash-list.c
 	$(CC) $(CFLAGS) $(DEFINES) -c -o $@ $<
 
+hash-list-with-lock.o: hash-list-with-lock.c
+	$(CC) $(CFLAGS) $(DEFINES) -c -o $@ $<
+
 bench-harris.o: bench.c
 	$(CC) $(CFLAGS) $(IS_HARRIS) $(DEFINES) -c -o $@ $<
 
@@ -57,6 +62,12 @@ bench-rcu.o: bench.c
 bench-rlu.o: bench.c
 	$(CC) $(CFLAGS) $(IS_RLU) $(DEFINES) -c -o $@ $<
 
+bench-lock.o: bench.c
+	$(CC) $(CFLAGS) $(IS_W_LOCKS) $(DEFINES) -c -o $@ $<
+
+test-lock.o: test-lock.c
+	$(CC) $(CFLAGS) $(IS_W_LOCKS) $(DEFINES) -c -o $@ $<
+
 bench-harris: new-urcu.o hazard_ptrs.o rlu.o hash-list.o bench-harris.o
 	$(LD) -o $@ $^ $(LDFLAGS)
 
@@ -67,6 +78,12 @@ bench-rcu: new-urcu.o hazard_ptrs.o rlu.o hash-list.o bench-rcu.o
 	$(LD) -o $@ $^ $(LDFLAGS)
 
 bench-rlu: new-urcu.o hazard_ptrs.o rlu.o hash-list.o bench-rlu.o
+	$(LD) -o $@ $^ $(LDFLAGS)
+
+bench-lock: new-urcu.o hazard_ptrs.o rlu.o hash-list.o hash-list-with-lock.o bench-lock.o
+	$(LD) -o $@ $^ $(LDFLAGS)
+
+test-lock: hash-list-with-lock.o test-lock.o
 	$(LD) -o $@ $^ $(LDFLAGS)
 
 clean:
