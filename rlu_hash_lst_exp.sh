@@ -6,13 +6,13 @@
 #     echo "Running $1"
 # fi
 
-for write_sets in 1 10
+for write_sets in 1 #10
 do
-	for updates in 20 200 400
+	for updates in 20 #200 400
 	do
 		current_time=$(date "+%Y.%m.%d-%H.%M.%S")
 
-		for num_threads in 1 2 4 6 8 10 12 14 16 18 20 22 24
+		for num_threads in 1 2 #4 6 8 10 12 14 16 18 20 22 24
 		do
 			for j in 1 2 3
 			do
