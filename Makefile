@@ -10,7 +10,7 @@ CFLAGS += -Wall -Winline
 #CFLAGS += --param inline-unit-growth=1000
 CFLAGS += -mrtm
 
-#CFLAGS += -DHIDE_ALL_STATS
+CFLAGS += -DHIDE_ALL_STATS
 
 #CFLAGS += -O0 -g3
 ifdef DEBUG

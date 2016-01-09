@@ -16,8 +16,8 @@ do
 		do
 			for j in 1 2 3
 			do
-				echo ./bench-rlu -a -b1 -d10000 -i1000 -r2000 -w$write_sets -u$updates -n$num_threads
-				./bench-rlu -a -b1 -d10000 -i1000 -r2000 -w$write_sets -u$updates -n$num_threads 2>> logs/rlu_ws${write_sets}_u${updates}_${current_time}_error.log 1>> logs/rlu_ws${write_sets}_u${updates}_${current_time}_output.log
+				echo ./bench-rlu -a -b1000 -d10000 -i100000 -r200000 -w$write_sets -u$updates -n$num_threads
+				./bench-rlu -a -b1000 -d10000 -i100000 -r200000 -w$write_sets -u$updates -n$num_threads 2>> logs/rlu_hashlst_ws${write_sets}_u${updates}_${current_time}_error.log 1>> logs/rlu_hashlst_ws${write_sets}_u${updates}_${current_time}_output.log
 		   		#./$1 $i 2>> $1_error.log 1>> $1_output.log
 		   	done
 		done
