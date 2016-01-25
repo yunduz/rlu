@@ -29,6 +29,8 @@ def process_log():
     experiment_runs = {}
     with open(file_in_n, 'r') as f_in:
         for line in f_in:
+            if line.startswith('Set') or line.startswith('cache'):
+                continue
             line = line.split()
             #print line
             if line: #if line was not an empty line
